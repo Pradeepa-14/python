@@ -1,0 +1,47 @@
+import tensorflow as tf
+# Load the pre-trained model
+model = tf.keras.models.load_model('logo_model.h5')
+
+# Load Google Service Account Credentials
+SCOPES = ['https://www.googleapis.com/auth/drive']
+SERVICE_ACCOUNT_FILE = 'service_account.json'
+
+credentials = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+
+service = build('drive', 'v3', credentials=credentials)
+
+def download_image_from_drive(drive_link):
+    file_id = drive_link.split('/')[-2]
+    request = service.files().get_media(fileId=file_id)
+    file = io.BytesIO(request.execute())
+    image_path = 'logo_image.jpg'
+    with open(image_path, 'wb') as f:
+        f.write(file.getbuffer())
+    return image_path
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    if 'drive_link' in request.form:
+        drive_link = request.form['drive_link']
+        image_path = download_image_from_drive(drive_link)
+        img = load_img(image_path, target_size=(150, 150))
+        img = img_to_array(img)
+        img = np.expand_dims(img, axis=0)
+        
+        prediction = model.predict(img)
+        
+        if prediction[0][0] > 0.5:
+            result = "Fake Logo"
+        else:
+            result = "Real Logo"
+        
+        return render_template('result.html', result=result)
+    return redirect(url_for('home'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
